@@ -139,7 +139,7 @@ resource "azurerm_virtual_machine_extension" "vme" {
 
   settings = <<SETTINGS
     {
-        "commandToExecute": "sudo apt-get update && sudo apt install nginx -y && curl -H Metadata:true --noproxy '*' 'http://20.23.243.112/metadata/instance/network/interface/0?api-version=<version>' | jq | sudo tee /var/www/html/index.html"
+        "commandToExecute": "sudo apt-get update && sudo apt install nginx -y && curl -H Metadata:true --noproxy '*' 'http://169.254.169.254/metadata/instance/network/interface/0?api-version=2021-01-01' | sudo tee /var/www/html/index.html"
     }
 SETTINGS
 }
