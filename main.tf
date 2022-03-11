@@ -53,7 +53,27 @@ resource "azurerm_network_security_group" "nsg" {
         destination_port_range     = "22"
         source_address_prefix      = "*"
         destination_address_prefix = "*"
+    }
+
+    security_rule {
+        name                       = "HTTP"
+        priority                   = 150
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "*"
+        source_port_range          = "*"
+        destination_port_range     = "80"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
   }
+}
+
+#Creat a Public Ip
+resource "azurerm_public_ip" "pip" {
+    name                = var.public_ip_name
+    location            = var.location
+    resource_group_name = var.resource_group_name
+    allocation_method   = "Dynamic"
 }
 
 #Create a Network Interface
@@ -66,6 +86,7 @@ resource "azurerm_network_interface" "nic" {
     name                          = "taavipip01"
     subnet_id                     = azurerm_subnet.subnet01.id
     private_ip_address_allocation = "Dynamic"
+    public_ip_address_id           = azurerm_public_ip.pip.id
   }
 }
 
@@ -75,6 +96,10 @@ resource "azurerm_network_interface_security_group_association" "main" {
   network_security_group_id = azurerm_network_security_group.nsg.id
 }
 
+/* # Bootstrapping Template File
+data "template_file" "nginx-vm-cloud-init" {
+  template = file("install-nginx.sh")
+} */
 
 # Create Linux Nginx Virtual Machine
 resource "azurerm_linux_virtual_machine" "vm" {
@@ -92,7 +117,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
     version = "latest"
   }
 
-  os_disk {
+   os_disk {
     name = "taaviosdisk01"
     caching = "ReadWrite"
     storage_account_type = "Standard_LRS"
@@ -102,4 +127,19 @@ resource "azurerm_linux_virtual_machine" "vm" {
   admin_username = var.VMuser
   admin_password = var.VMpassword
   disable_password_authentication = false
+  #custom_data = base64encode(data.template_file.nginx-vm-cloud-init.rendered)
+}
+
+resource "azurerm_virtual_machine_extension" "vme" {
+  name                 = "nginx"
+  virtual_machine_id   = azurerm_linux_virtual_machine.vm.id
+  publisher            = "Microsoft.Azure.Extensions"
+  type                 = "CustomScript"
+  type_handler_version = "2.0"
+
+  settings = <<SETTINGS
+    {
+        "commandToExecute": "sudo apt-get update && sudo apt install nginx -y && curl -H Metadata:true --noproxy '*' 'http://20.23.243.112/metadata/instance/network/interface/0?api-version=<version>' | jq | sudo tee /var/www/html/index.html"
+    }
+SETTINGS
 }

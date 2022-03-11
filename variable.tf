@@ -17,12 +17,6 @@ variable "network_interface_name" {
 variable "linux_virtual_machine_name" {
     default = "taaviLS01"
 }
-/*
-variable "storage_account_name" {
-    default = "taavistorage01"
+variable "public_ip_name" {
+    default = "taavipip01"
 }
-variable "storage_container_name" {
-    default = "taaviblob01"
-}
-
-} */
