@@ -11,12 +11,95 @@ terraform {
 
 provider "azurerm" {
   features {}
-  subscription_id       = var.subscription_id
-  tenant_id             = var.tenant_id
+  subscription_id     = var.subscription_id
+  tenant_id           = var.tenant_id
 }
 
 #Create a resource group
 resource "azurerm_resource_group" "rg" {
-  name     = var.resource_group_name
-  location = "westeurope"
+  name                = var.resource_group_name
+  location            = var.location
+}
+
+# Create a virtual network
+resource "azurerm_virtual_network" "vnet" {
+    name                = "taavi-checkpoint7-vnet"
+    address_space       = ["10.0.0.0/16"]
+    location            = var.location
+    resource_group_name = var.resource_group_name
+}
+
+#Creat a Subnet
+resource "azurerm_subnet" "subnet01" {
+    name           = "taavi-subnet01"
+    resource_group_name  = var.resource_group_name
+    virtual_network_name = azurerm_virtual_network.vnet.name
+    address_prefixes     = ["10.0.1.0/24"]
+}
+
+#Create a Network Security Group
+resource "azurerm_network_security_group" "nsg" {
+  name                = var.network_security_group_name
+  location            = var.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+    security_rule {
+        name                       = "SSH"
+        priority                   = 100
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "*"
+        source_port_range          = "*"
+        destination_port_range     = "22"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
+  }
+}
+
+#Create a Network Interface
+resource "azurerm_network_interface" "nic" {
+  name                = var.network_interface_name
+  location            = var.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+    ip_configuration {
+    name                          = "taavipip01"
+    subnet_id                     = azurerm_subnet.subnet01.id
+    private_ip_address_allocation = "Dynamic"
+  }
+}
+
+# Associate NIC and NSG
+resource "azurerm_network_interface_security_group_association" "main" {
+  network_interface_id      = azurerm_network_interface.nic.id
+  network_security_group_id = azurerm_network_security_group.nsg.id
+}
+
+
+# Create Linux Nginx Virtual Machine
+resource "azurerm_linux_virtual_machine" "vm" {
+
+  depends_on            =[azurerm_network_interface.nic]
+  name                  = var.linux_virtual_machine_name
+  location              = var.location
+  resource_group_name   = var.resource_group_name
+  network_interface_ids = [azurerm_network_interface.nic.id]
+  size                  = "Standard_DS1_v2"
+  source_image_reference {
+    publisher = "Canonical"
+    offer = "UbuntuServer"
+    sku = "16.04-LTS"
+    version = "latest"
+  }
+
+  os_disk {
+    name = "taaviosdisk01"
+    caching = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  computer_name  = "hostname"
+  admin_username = var.VMuser
+  admin_password = var.VMpassword
+  disable_password_authentication = false
 }
